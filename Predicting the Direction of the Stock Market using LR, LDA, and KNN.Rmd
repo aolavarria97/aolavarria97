@@ -1,7 +1,9 @@
 ---
 title: Predicting the Direction of the Stock Market using Logistic Regression, LDA,
   and KNN
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
