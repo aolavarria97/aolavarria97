@@ -1,0 +1,77 @@
+---
+title: "Portfolio Risk Minimization using Bootstrap Analysis"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Introduction
+
+The purpose of this project is to use the bootstrap resampling technique to determine how to allocate between two stocks with minimal risk. For this project, I have selected two publicly traded social networking companies to analyze their price series, Twitter (TWTR) and Facebook (FB). For both of these stock-price series, I will be using data from Yahoo Finance of adjusted daily closing prices over the period from November 7th, 2013 (when TWTR went public) until January 1st, 2021. So, there are about 1,800 observations in each series. I am using the `quantmod` package in `R` to download this pricing data.
+
+```{r}
+library(quantmod)
+
+getSymbols("TWTR", src = "yahoo", from = as.Date("2013-11-07"), to = as.Date("2021-01-01"))
+X <- as.numeric(diff(log(TWTR[,6])))[-1]
+
+getSymbols("FB", src = "yahoo", from = as.Date("2013-11-07"), to = as.Date("2021-01-01"))
+Y <- as.numeric(diff(log(FB[,6])))[-1]
+```
+
+Suppose we are at the beginning of January 2021 and we would like to construct a portfolio of two assets with as little risk as possible. We are going to invest a fraction $\alpha\in(0,1)$ in Twitter $(X)$ and $1-\alpha$ in Facebook $(Y)$. To minimize the total risk of our investment, we want to choose $\alpha$ such that the variance of $\alpha X+(1-\alpha)Y$ is as low as possible. We can find an estimate for this value $\hat\alpha$ using the sample variance and covariance of the data:
+
+$$\hat\alpha=\frac{\hat\sigma_Y^2-\hat\sigma_{XY}}{\hat\sigma_X^2+\hat\sigma_Y^2-2\hat\sigma_{XY}}$$
+
+I will calculate this value below:
+
+```{r}
+alpha <- (var(Y) - cov(X,Y)) / (var(X) + var(Y) - 2 * cov(X,Y))
+
+alpha
+```
+
+So, using the formula above, we get an estimate of $\hat\alpha=0.133516$. That is, we should invest about $13.35\%$ in Twitter and $86.65\%$ in Facebook in order to minimize the total risk of our investment.  
+
+Now, to estimate the variance of $\hat\alpha$, I will use the `boot()` command from the `boot` library in `R`. For a random sample of $N$ pairs of observations from $S$ (with replacement) $R$ times, the `boot` command provides an estimate of the standard deviation (standard error) of these $R$ bootstrap estimates $\hat\alpha^{*1}, \hat\alpha^{*2},...,\hat\alpha^{*R}$ using the formula
+
+$$SE(\hat\alpha)=\sqrt{\frac{1}{R-1}\sum_{r=1}^{R}(\hat\alpha^{*r}-\frac{1}{R}\sum_{r'=1}^{R}\hat\alpha^{*r'})^2}$$
+(found in An Introduction to Statistical Learning with Applications in R, page 189), which serves as an estimate of the standard deviation of $\hat\alpha$ estimated from the original data set $S$. I will be using `R=1,000`, since I would like to repeat this procedure $1,000$ times. Then, I will square this value to obtain an estimate for the variance of $\hat\alpha$.  
+
+Here is the result of the bootstrap analysis:
+
+```{r}
+library(boot)
+
+S <- data.frame(X,Y)
+
+alpha.fn = function(data,index){
+  X = S$X[index]
+  Y = S$Y[index]
+  return((var(Y) - cov(X,Y)) / (var(X) + var(Y) - 2 * cov(X,Y)))
+}
+
+set.seed(1)
+
+boot <- boot(S, alpha.fn, R = 1000)
+
+boot
+```
+
+This output shows that using the original data in $S$, the bootstrap estimate for the standard error of $\hat\alpha$ is $0.02920859$. Therefore, the variance is equal to
+
+```{r}
+0.02920859^2
+```
+
+i.e., $Var(\hat\alpha)=0.0008531417$. This is very low, so I am confident that our estimate of $\hat\alpha$ is pretty good.  
+
+The `boot` library has a built-in plot function to get a histogram and quantile-quantile plot of our $1,000$ bootstrap estimates:
+
+```{r}
+plot(boot)
+```
+  
